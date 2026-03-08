@@ -34,6 +34,8 @@ class LapRecorder:
         self._current_samples: List[TelemetrySample] = []
         self._current_lap_number: Optional[int] = None
         self._recording: bool = False
+        # False as soon as any sample in the current lap is invalid
+        self._lap_valid: bool = True
 
     # ------------------------------------------------------------------
     # Public API
@@ -88,9 +90,13 @@ class LapRecorder:
             self._reset_buffer()
             self._current_lap_number = sample.lap_number
             self._current_samples.append(sample)
+            if not sample.is_valid:
+                self._lap_valid = False
             return finished
 
         self._current_samples.append(sample)
+        if not sample.is_valid:
+            self._lap_valid = False
         return None
 
     def save_current_lap(self) -> Optional[LapData]:
@@ -118,6 +124,7 @@ class LapRecorder:
             car_model=self.car_model,
             lap_time=lap_time,
             date=datetime.now(timezone.utc).isoformat(),
+            is_valid=self._lap_valid,
             samples=list(self._current_samples),
         )
         self.completed_laps.append(lap)
@@ -126,3 +133,4 @@ class LapRecorder:
     def _reset_buffer(self) -> None:
         self._current_samples = []
         self._current_lap_number = None
+        self._lap_valid = True

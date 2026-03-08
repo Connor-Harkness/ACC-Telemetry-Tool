@@ -32,6 +32,9 @@ from telemetry.replay import ReplaySystem
 def _generate_demo_lap(num_samples: int = 400) -> LapData:
     """Return a synthetic :class:`~telemetry.models.LapData` shaped like an oval.
 
+    The last quarter of the lap is marked invalid to simulate a track-limits
+    cut, demonstrating that invalid laps are still fully recorded.
+
     Args:
         num_samples: Number of samples to generate.
 
@@ -40,6 +43,8 @@ def _generate_demo_lap(num_samples: int = 400) -> LapData:
     """
     samples = []
     base_ts = time.monotonic()
+    # Simulate a track-limits cut in the last quarter of the lap
+    cut_start = int(num_samples * 0.75)
     for i in range(num_samples):
         angle = 2 * math.pi * i / num_samples
         # Simple oval: stretch X axis
@@ -48,6 +53,8 @@ def _generate_demo_lap(num_samples: int = 400) -> LapData:
         # Speed varies with curvature – slower in tighter corners
         curvature = abs(math.sin(angle))
         speed = 200.0 - 80.0 * curvature
+        # Lap becomes invalid once the simulated cut begins
+        is_valid = i < cut_start
 
         samples.append(
             TelemetrySample(
@@ -63,6 +70,7 @@ def _generate_demo_lap(num_samples: int = 400) -> LapData:
                 pos_x=pos_x,
                 pos_y=0.0,
                 pos_z=pos_z,
+                is_valid=is_valid,
             )
         )
 
@@ -71,6 +79,7 @@ def _generate_demo_lap(num_samples: int = 400) -> LapData:
         car_model="demo_car",
         lap_time=num_samples * 50,
         date=datetime.now(timezone.utc).isoformat(),
+        is_valid=False,  # cut occurred → overall lap is invalid
         samples=samples,
     )
 
@@ -125,13 +134,15 @@ def main() -> None:
 
         lap = recorder.completed_laps[-1]
         print(f"Recorded lap: {len(lap.samples)} samples, "
-              f"lap time = {lap.lap_time} ms")
+              f"lap time = {lap.lap_time} ms, "
+              f"valid = {lap.is_valid}")
     else:
         print("ACC shared memory not available (non-Windows or ACC not running).")
         print("Generating a synthetic demo lap instead.\n")
         lap = _generate_demo_lap()
         print(f"Generated demo lap: {len(lap.samples)} samples, "
-              f"lap time = {lap.lap_time} ms")
+              f"lap time = {lap.lap_time} ms, "
+              f"valid = {lap.is_valid}")
 
     # ------------------------------------------------------------------
     # Step 2 – Save the lap
@@ -144,7 +155,8 @@ def main() -> None:
     # ------------------------------------------------------------------
     loaded_lap = storage.load(save_path)
     print(f"Lap loaded:  {loaded_lap.track} | {loaded_lap.car_model} | "
-          f"{len(loaded_lap.samples)} samples")
+          f"{len(loaded_lap.samples)} samples | "
+          f"valid = {loaded_lap.is_valid}")
 
     # ------------------------------------------------------------------
     # Step 4 – Quick replay preview (first 5 frames, no real-time sleep)

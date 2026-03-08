@@ -9,8 +9,15 @@ from typing import Optional
 
 try:
     from pyaccsharedmemory import accSharedMemory
-    _ACC_AVAILABLE = True
-except Exception:  # pragma: no cover – Windows-only shared memory
+    # Verify the library is functional at import time (it only works on Windows)
+    try:
+        _test_sm = accSharedMemory()
+        _test_sm.close()
+    except Exception:
+        accSharedMemory = None  # type: ignore[assignment,misc]
+    _ACC_AVAILABLE = accSharedMemory is not None
+except Exception:  # pragma: no cover
+    accSharedMemory = None  # type: ignore[assignment,misc]
     _ACC_AVAILABLE = False
 
 from telemetry.models import TelemetrySample
@@ -140,4 +147,5 @@ class ACCReader:
             pos_x=pos_x,
             pos_y=pos_y,
             pos_z=pos_z,
+            is_valid=bool(gfx.is_valid_lap),
         )
